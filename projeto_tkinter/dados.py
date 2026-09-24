@@ -1,8 +1,10 @@
+import os
 import sqlite3
-from typing import List, Dict, Optional
+from typing import Dict, List, Optional, Tuple
 
 
-DB_PATH = 'projeto_tkinter.db'
+BASE_DIR = os.path.dirname(os.path.abspath(__file__))
+DB_PATH = os.path.join(BASE_DIR, 'projeto_tkinter.db')
 
 
 def init_db(path: str = DB_PATH):
@@ -28,7 +30,12 @@ def create_task(task: Dict, path: str = DB_PATH) -> int:
     cur = conn.cursor()
     cur.execute(
         'INSERT INTO tasks (title, description, priority, status) VALUES (?, ?, ?, ?)',
-        (task.get('title'), task.get('description'), task.get('priority', 3), task.get('status', 'pendente'))
+        (
+            task.get('title'),
+            task.get('description'),
+            task.get('priority', 3),
+            task.get('status', 'pendente'),
+        ),
     )
     conn.commit()
     task_id = cur.lastrowid
@@ -41,7 +48,10 @@ def read_tasks(filter_text: Optional[str] = None, path: str = DB_PATH) -> List[D
     cur = conn.cursor()
     if filter_text:
         q = '%' + filter_text + '%'
-        cur.execute('SELECT id, title, description, priority, status FROM tasks WHERE title LIKE ? OR description LIKE ? ORDER BY id', (q, q))
+        cur.execute(
+            'SELECT id, title, description, priority, status FROM tasks WHERE title LIKE ? OR description LIKE ? ORDER BY id',
+            (q, q),
+        )
     else:
         cur.execute('SELECT id, title, description, priority, status FROM tasks ORDER BY id')
     rows = cur.fetchall()
@@ -54,7 +64,13 @@ def update_task(task_id: int, updates: Dict, path: str = DB_PATH) -> None:
     cur = conn.cursor()
     cur.execute(
         'UPDATE tasks SET title = ?, description = ?, priority = ?, status = ? WHERE id = ?',
-        (updates.get('title'), updates.get('description'), updates.get('priority', 3), updates.get('status', 'pendente'), task_id)
+        (
+            updates.get('title'),
+            updates.get('description'),
+            updates.get('priority', 3),
+            updates.get('status', 'pendente'),
+            task_id,
+        ),
     )
     conn.commit()
     conn.close()
@@ -66,3 +82,18 @@ def delete_task(task_id: int, path: str = DB_PATH) -> None:
     cur.execute('DELETE FROM tasks WHERE id = ?', (task_id,))
     conn.commit()
     conn.close()
+
+
+def get_summary(path: str = DB_PATH) -> Tuple[int, int, int, float]:
+    conn = sqlite3.connect(path)
+    cur = conn.cursor()
+    cur.execute(
+        'SELECT COUNT(*), SUM(CASE WHEN status = "pendente" THEN 1 ELSE 0 END), SUM(CASE WHEN status = "concluida" THEN 1 ELSE 0 END), AVG(priority) FROM tasks'
+    )
+    total, pendentes, concluidas, media_prioridade = cur.fetchone()
+    conn.close()
+    total = total or 0
+    pendentes = pendentes or 0
+    concluidas = concluidas or 0
+    media_prioridade = media_prioridade or 0.0
+    return total, pendentes, concluidas, float(media_prioridade)
